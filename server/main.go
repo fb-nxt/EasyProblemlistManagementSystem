@@ -94,11 +94,6 @@ func main() {
 		c.Next()
 	})
 
-	// 配置静态文件服务
-	r.Static("/assets", "./client/dist/assets")
-	r.StaticFile("/", "./client/dist/index.html")
-	r.StaticFile("/index.html", "./client/dist/index.html")
-
 	// API路由组
 	api := r.Group("/api")
 	{
@@ -122,13 +117,41 @@ func main() {
 		api.GET("/learning-note", getLearningNote)
 	}
 
-	// 启动服务器
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	// 静态文件服务-放在最后
+	r.Static("/static", "./static")
+	r.Static("/assets", "../client/dist/assets")
+	r.StaticFile("/", "../client/dist/index.html")
+	r.NoRoute(func(c *gin.Context) {
+		// 非 /api 路径统一回退到前端入口
+		if !strings.HasPrefix(c.Request.URL.Path, "/api") {
+			c.File("../client/dist/index.html")
+			return
+		}
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not Found"})
+	})
+
+	certFile := os.Getenv("TLS_CERT_FILE")
+	keyFile := os.Getenv("TLS_KEY_FILE")
+	if certFile != "" && keyFile != "" {
+		if _, err := os.Stat(certFile); err == nil {
+			if _, err := os.Stat(keyFile); err == nil {
+				if err := r.RunTLS(":8080", certFile, keyFile); err != nil {
+					log.Fatal(err)
+				}
+				return
+			}
+		}
 	}
-	log.Printf("Server starting on port %s...", port)
-	r.Run(":" + port)
+	if err := r.Run(":8080"); err != nil {
+		log.Fatal(err)
+	}
+	// 启动服务器
+	//port := os.Getenv("PORT")
+	//if port == "" {
+	//	port = "8080"
+	//}
+	//log.Printf("Server starting on port %s...", port)
+	//r.Run(":" + port)
 }
 
 // 1. 查询接口
